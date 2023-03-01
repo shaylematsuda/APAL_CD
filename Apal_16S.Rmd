@@ -1,0 +1,104 @@
+---
+title: "APAL_16S"
+author: "matsuda"
+date: "2023-03-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+
+library(plyr) 
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(lmerTest)
+library(car)
+library(emmeans)
+library(gridExtra)
+library(multcomp)
+library(reshape)
+library(factoextra)
+library(reshape2)
+library(vegan) 
+library(pairwiseAdonis)
+library("scales")
+packageVersion("scales")
+library(RColorBrewer)
+library(colorRamps)
+library(devtools)
+library(phyloseq)
+library(readr)
+library(vegan)
+library(ape)
+library(geosphere)
+library(ade4)
+library(microbiome)  
+library(knitr)
+library(tidyverse)
+```
+
+#Load in data and get into phyloseq (save RData file)
+```{r}       
+#read in sample data
+MetaData16<-read.csv("Apal_metadata.csv")
+MetaData16$Group<-as.factor(MetaData16$Group)
+MetaData16$Timepoint<-as.factor(MetaData16$Timepoint)
+MetaData16$tileID<-as.factor(MetaData16$tileID)
+MetaData16$tubeNumber<-as.factor(MetaData16$tubeNumber)
+MetaData16$nursery<-as.factor(MetaData16$nursery)
+MetaData16$parentID<-as.factor(MetaData16$parentID)
+MetaData16$parent<-as.factor(MetaData16$parent)
+MetaData16$genoID<-as.factor(MetaData16$genoID)
+MetaData16$genetID<-as.factor(MetaData16$genetID)
+MetaData16$Tank<-as.factor(MetaData16$Tank)
+MetaData16$type<-as.factor(MetaData16$type)
+MetaData16$symbiont<-as.factor(MetaData16$symbiont)
+
+sam0 <- MetaData16
+sam1 <- as.matrix(sam0[, -1])
+rownames(sam1) <- sam0$sample_name
+sam <- sample_data(data.frame(sam1))
+
+#load in OUT:raw_abundanceTable_100.shared
+OTU3k<-read.table("16S-pipeline_outputs/Results/raw/details/raw_abundanceTable_100.shared", sep='', header=T)
+
+OTU3k <- as.matrix(OTU3k[, -(1)]) # remove first col "label"
+# replace the "Group" col with actual sample IDs.
+indexes<-MetaData16[,1:2]
+otu3k2<-merge(indexes,OTU3k, by="Group") #add sample names
+otu3k2<-otu3k2[,-(3)]# remove first col "Group" and num Otu
+otu3k2<-otu3k2[,-(1)]
+otu3k2 <- as.matrix(otu3k2) #make matrix
+otu3k2.df<-as.data.frame(otu3k2) #make df copy to make samp names as row names in matrix
+rownames(otu3k2) <- otu3k2.df$sample_name
+otu3k2 <- as.matrix(otu3k2[, -(1)]) # remove col sample_name
+
+## something is preventing phyloseq from taking otu3k2 as the otu table. but if you save and then reupload it works. 
+#write.csv(otu3k2,"otu3k2check.csv")
+testOtu<-read.csv("otu3k2check.csv")
+testOtu2 <- as.matrix(testOtu[, -(1)]) 
+rownames(testOtu2)<- otu3k2.df$sample_name
+otu <- otu_table(testOtu2, taxa_are_rows = FALSE)
+
+#tax table annotations_100_taxonomy.csv (edited to be in proper format with proper col names in excel (remove ";"))
+TAX<- read.csv("16S-pipeline_outputs/Results/main/details/annotations_100.taxonomy_format.csv", colClasses = "character") #copied from 16S and put in main folder (trouble accessing)
+
+
+tax1 <- as.matrix(TAX[, -1], dimnames = list(TAX$OTU, colnames(TAX[-1])))
+rownames(tax1) <- TAX$OTU
+tax <- tax_table(tax1)
+
+# Read the data into phyloseq
+Bac.seq = phyloseq(otu, tax,sam) #THIS WORKS
+Bac.seq
+Bac.seq.df <- sample_data(Bac.seq)
+
+#load your .tre otu_repr_100.tre
+treefile<- read.tree("MCL19Summer_16S-pipeline_outputs USE THIS ONE/Results/postprocessing/unifrac/otu_repr_100.tre")
+phy_tree(Bac.seq) <- treefile
+Bac.seq
+
+#save(Bac.seq, file = "Data/Bac.seq_phyloseq.RData")
+```
